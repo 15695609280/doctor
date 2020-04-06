@@ -1,0 +1,2 @@
+setCssToHead([".",[1],"buttonTop{ position: relative; top: 10px; left: 80%; }\n.",[1],"input{ width: 100%; position: relative; }\n.",[1],"input wx-button{position: absolute;left: 80%;top: 16px;}\n.",[1],"input wx-input{ width: 66%; border: 1px solid #888888; position: relative; top: 20px; margin-left: 5px; padding-left: 20px; }\n.",[1],"box{ position: relative; top: 40px; }\n",],undefined,{path:"./pages/index/tableList.wxss"})();
+document.dispatchEvent(new CustomEvent("generateFuncReady", { detail: { generateFunc: $gwx('./pages/index/tableList.wxml') } }));

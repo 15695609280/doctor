@@ -1,0 +1,17 @@
+.col.data-v-c0cb5b7a {
+  height: 100px;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-box-pack: center;
+  -webkit-justify-content: center;
+          justify-content: center;
+  -webkit-flex-wrap: wrap;
+          flex-wrap: wrap;
+  background: #2C405A;
+  color: #FBBD08;
+  font-size: 30rpx;
+  line-height: 200rpx;
+  margin-top: 20rpx;
+}
+

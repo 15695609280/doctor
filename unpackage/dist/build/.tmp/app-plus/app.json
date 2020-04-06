@@ -1,0 +1,60 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/index/404",
+    "pages/index/payload/payload",
+    "pages/index/About",
+    "pages/index/check",
+    "pages/index/login",
+    "pages/index/tableList",
+    "pages/index/swipe-action",
+    "pages/index/payload/payload",
+    "pages/index/centerPay/centerPay"
+  ],
+  "window": {
+    "style": {
+      "app-plus": {
+        "titleNView": false
+      }
+    },
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "uni-app",
+    "navigationBarBackgroundColor": "#F8F8F8",
+    "backgroundColor": "#F8F8F8"
+  },
+  "tabBar": {
+    "color": "#2C405A",
+    "selectedColor": "#1296db",
+    "borderStyle": "black",
+    "backgroundColor": "#FFFFFF",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "iconPath": "static/work4.png",
+        "selectedIconPath": "static/work2.png",
+        "text": "工作台"
+      },
+      {
+        "pagePath": "pages/index/check",
+        "iconPath": "static/check2.png",
+        "selectedIconPath": "static/check1.png",
+        "text": "治疗登记"
+      },
+      {
+        "pagePath": "pages/index/centerPay/centerPay",
+        "iconPath": "static/pay4.png",
+        "selectedIconPath": "static/pay.png",
+        "text": "确认收费"
+      }
+    ]
+  },
+  "nvueCompiler": "uni-app",
+  "renderer": "auto",
+  "splashscreen": {
+    "alwaysShowBeforeRender": true,
+    "autoclose": false
+  },
+  "appname": "app",
+  "compilerVersion": "2.4.6",
+  "usingComponents": {}
+}

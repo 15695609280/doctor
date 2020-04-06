@@ -1,0 +1,1 @@
+<view class="row data-v-3a719023" style="{{('justify-content:'+align)}}"><block wx:if="{{retract!=0}}"><view class="{{['data-v-3a719023','row-'+retract]}}"></view></block><slot></slot></view>

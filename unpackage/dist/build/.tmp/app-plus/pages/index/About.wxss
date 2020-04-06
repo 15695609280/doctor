@@ -1,0 +1,20 @@
+
+.bo{
+	  
+	    width: 100px; 
+	    height: 100px; 
+	    background: yellow; 
+	    position: relative;
+	    -webkit-animation: begin 5s;
+	            animation: begin 5s;
+}
+@-webkit-keyframes begin{
+0%   {background: red; left:0px; top:0px;}
+25%  {background: yellow; left:200px; top:0px;}
+50%  {background: blue; left:200px; top:200px;}
+75%  {background: green; left:0px; top:200px;}
+100% {background: red; left:0px; top:0px;}
+}
+    
+   
+

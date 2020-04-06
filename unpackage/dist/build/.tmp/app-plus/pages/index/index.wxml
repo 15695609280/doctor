@@ -1,0 +1,1 @@
+<view class="content"><view class="text-area"><text data-event-opts="{{[['tap',[['loginOr',['$event']]]]]}}" class="ming" bindtap="__e">{{yes?yes:no}}</text><text class="zhonghe">综合治疗室</text><view class="textone"><text data-event-opts="{{[['tap',[['back',['$event']]]]]}}" class="tui" bindtap="__e">退出</text></view></view></view>

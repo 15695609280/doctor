@@ -1,0 +1,30 @@
+
+.bo{
+	   width: 200px;
+	   height: 200px;
+	   border: 5px solid #1296DB;
+	   border-radius: 20px;
+	   box-shadow:10px 10px #1296DB;
+	   margin: 200px auto;
+	   display: -webkit-box;
+	   display: -webkit-flex;
+	   display: flex;
+	   -webkit-box-pack: center;
+	   -webkit-justify-content: center;
+	           justify-content: center;
+	   -webkit-box-align: center;
+	   -webkit-align-items: center;
+	           align-items: center;
+	   font-size: 30px;
+	   color: #4CD964;
+}
+.button{
+	  width: 80%;
+	  margin: auto;
+	  margin-top: -160px;
+	  background: #4CD964;
+	  color: #FFFFFF;
+	  font-size: 20px;
+}
+   
+

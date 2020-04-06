@@ -1,0 +1,25 @@
+
+.buttonTop{
+	position: relative;
+	top: 10px;
+	left: 80%;
+}
+.input{
+	width: 100%;
+	position: relative;
+}
+.input button{position: absolute;left: 80%;top: 16px;}
+.input input{
+	width:  66%;
+	 
+	border: 1px solid #888888;
+	position: relative;
+	top: 20px;
+	margin-left: 5px;
+	padding-left: 20px;
+}
+.box{
+	position: relative;
+	top: 40px;
+}
+
