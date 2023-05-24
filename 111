@@ -1,0 +1,673 @@
+import moment from "moment";
+
+export default class timeAxis {
+  constructor(options) {
+    if (!options.dom) {
+      return "";
+    }
+    for (let option in options) {
+      if (options.hasOwnProperty(option)) {
+        this[option] = options[option];
+      }
+    }
+    if (this.timecell && this.timecell.length) {
+      this.currentTimestamp = this.timecell[0].begin;
+    }
+    if (options.cellStyle && options.cellStyle.background) {
+      this.cellStyle = options.cellStyle;
+    } else {
+      this.cellStyle = {
+        background: "rgba(24,208,217,0.5)",
+        borderBottomColor: "yellow", // 添加这一行
+        borderBottomWidth: 10, // 添加这一行
+      };
+    }
+    this.isClick = false;
+
+    this.button = 0; // 0:左键， 2:右键
+    this.isPressDown = false; // 是否按下
+    this.isDragPointer = false;
+    this.currentChecked = "";
+
+    this.zoomHours = 4;
+    this.graduationMinStep = 10;
+    this.minutesPerStep = [
+      1, 2, 5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 720, 1440,
+    ];
+    this.pointerOptions = {
+      beginX: 0,
+      beginY: 0,
+      endX: 0,
+      endY: 30,
+      color: "rgb(255, 255, 255)",
+      width: 2,
+    };
+    this.initCanvas();
+    this.initCanvasCtx();
+  }
+
+  initCanvas() {
+    this.canvas = document.createElement("canvas");
+    this.canvas.width = this.dom.clientWidth;
+    this.canvas.height = this.dom.clientHeight;
+    this.canvas.style.backgroundColor = this.bg;
+    this.canvasWidth = this.canvas.width;
+    this.canvasHeight = this.canvas.height;
+    this.dom.appendChild(this.canvas);
+
+    this.canvasCtx = this.canvas.getContext("2d");
+    this.canvasGraduationsLinesCtx = this.canvas.getContext("2d");
+    this.canvasPlayPointerCtx = this.canvas.getContext("2d");
+    this.initEvents();
+  }
+
+  resize() {
+    this.canvas.width = this.dom.clientWidth;
+    this.canvas.height = this.height;
+    this.canvas.style.backgroundColor = this.bg;
+    this.canvasWidth = this.canvas.width;
+    this.canvasHeight = this.canvas.height;
+    this.clearCanvas();
+    this.initCanvasCtx();
+  }
+
+  initCanvasCtx() {
+    this.pxPerMs = this.canvasWidth / (this.zoomHours * 60 * 60 * 1000);
+    this.initBorders();
+    this.initTimeCells(this.timecell || []);
+
+    // 渲染时间轴
+    this.initGraduationsLines(this.date);
+
+    if (this.isClick) {
+      // 渲染播放指针
+      this.initPlayPointerCtx();
+    }
+  }
+
+  // 初始化边框
+  initBorders() {
+    let borderColor = "rgb(151, 158, 167)";
+    //顶线
+    this.drawLine({
+      beginX: 0,
+      beginY: 0,
+      endX: this.canvasWidth,
+      endY: 0,
+      color: borderColor,
+      width: 1,
+    });
+    //底线
+    this.drawLine({
+      beginX: 0,
+      beginY: this.canvasHeight,
+      endX: this.canvasWidth,
+      endY: this.canvasHeight,
+      color: borderColor,
+      width: 1,
+    });
+  }
+
+  // 画线
+  drawLine({ beginX, beginY, endX, endY, color, width }) {
+    this.canvasCtx.beginPath();
+    this.canvasCtx.moveTo(beginX, beginY);
+    this.canvasCtx.lineTo(endX, endY);
+    this.canvasCtx.strokeStyle = color;
+    this.canvasCtx.lineWidth = width;
+    this.canvasCtx.stroke();
+  }
+
+  // 有效时间区域
+  initTimeCells(datas) {
+    // 分段填充时间段
+    datas.forEach((cell, index) => {
+      this.drawCell(cell, index);
+    });
+    this.canvasCtx.font = "normal normal 12px Arial,sans-serif";
+    this.canvasCtx.fillStyle = "#fff";
+  }
+
+  // 填充时间段
+  drawCell(data, index) {
+    let fillColor = this.cellStyle.background;
+    let borderBottomColor = this.cellStyle.borderBottomColor; // 获取边框颜色
+    let borderBottomWidth = this.cellStyle.borderBottomWidth || 2; // 获取边框宽度
+
+    if (data.style && data.style.background) {
+      fillColor = data.style.background;
+    }
+    let cellBeginX = this.pxPerMs * (data.begin - this.date);
+    let cellWidth = (data.end - data.begin) * this.pxPerMs;
+    this.canvasCtx.fillStyle = fillColor;
+    this.canvasCtx.font = "normal normal 12px Arial,sans-serif";
+    this.canvasCtx.fillRect(cellBeginX, 0, cellWidth, this.canvas.height);
+    this.canvasCtx.fillStyle = "#fff";
+     // 先绘制填充区域
+  this.canvasCtx.fillStyle = fillColor;
+  this.canvasCtx.fillRect(
+    cellBeginX,
+    0,
+    cellWidth,
+    this.canvas.height - borderBottomWidth
+  );
+     // 绘制底部边框
+  if (borderBottomColor) {
+    this.canvasCtx.fillStyle = borderBottomColor;
+    this.canvasCtx.fillRect(
+      cellBeginX,
+      this.canvas.height - borderBottomWidth,
+      cellWidth,
+      borderBottomWidth
+    );
+  }
+}
+
+  // 初始化刻度线
+  initGraduationsLines(date) {
+    let widthTotal = this.canvasWidth;
+    // 一分钟转换为px
+    let pxPerMinute = widthTotal / (this.zoomHours * 60);
+    // 一毫秒转换为px
+    let pxPerMs = widthTotal / (this.zoomHours * 60 * 60 * 1000);
+    // 一格转换为分钟
+    let StepPerMinute = this.graduationMinStep / pxPerMinute;
+    let minutePerStep = this.minutesPerStep.find(
+      (item) => item > StepPerMinute
+    );
+    // 每格的宽度
+    let stepPerPx = minutePerStep * pxPerMinute;
+    //总格数(每格{minutePerStep}分钟)
+    let stepTotalNum = widthTotal / stepPerPx;
+
+    let msOffset = this.ms_to_next_step(date, minutePerStep * 60 * 1000); //开始的偏移时间 ms
+    let pxOffset = msOffset * pxPerMs; //开始的偏移距离 px
+
+    for (let i = 0; i <= stepTotalNum; i++) {
+      let graduationTime = date + msOffset + i * (stepPerPx / pxPerMs); //时间=左侧开始时间+偏移时间+格数*ms/格
+      let leftPx = pxOffset + i * stepPerPx;
+      let lineH = 10;
+      let width = 1;
+      if (this.formatDate("hh:mm:ss", graduationTime) === "00:00:00") {
+        // 0点
+        lineH = 20;
+        width = 3;
+        let bigDateTitle = this.formatDate(" ", graduationTime);
+        this.canvasGraduationsLinesCtx.textAlign = "center";
+        this.canvasGraduationsLinesCtx.fillStyle = "#ffffff";
+        this.canvasGraduationsLinesCtx.font =
+          "normal normal 12px Arial,sans-serif";
+        this.canvasGraduationsLinesCtx.fillText(bigDateTitle, leftPx, 30);
+      } else if ((graduationTime / (60 * 6 * 1000)) % minutePerStep === 0) {
+        // 整小时
+        lineH = 15;
+        width = 2;
+        let middleDateTitle = this.formatDate("hh:mm", graduationTime);
+        this.canvasGraduationsLinesCtx.fillStyle = "#ffffff";
+        this.canvasGraduationsLinesCtx.textAlign = "center";
+        this.canvasGraduationsLinesCtx.font =
+          "normal normal 12px Arial,sans-serif";
+        this.canvasGraduationsLinesCtx.fillText(middleDateTitle, leftPx, 25);
+      } else {
+        lineH = 10;
+        width = 1;
+      }
+      let options = {
+        beginX: leftPx,
+        beginY: 0,
+        endX: leftPx,
+        endY: lineH,
+        color: "rgba(151,158,167,1)",
+        width: 1,
+      };
+      // 刻度线
+      this.drawLine(options);
+    }
+  }
+
+  // 初始化指针
+  initPlayPointerCtx() {
+    if (this.currentTimestamp) {
+      this.pointerOptions.beginX =
+        this.pxPerMs * (this.currentTimestamp - this.date);
+      this.pointerOptions.endX =
+        this.pxPerMs * (this.currentTimestamp - this.date);
+    }
+    this.canvasPlayPointerCtx.beginPath();
+    // 开始位置 (0,0)
+    this.canvasPlayPointerCtx.moveTo(
+      this.pointerOptions.beginX,
+      this.pointerOptions.beginY
+    );
+    // 结束位置 (0,30)
+    this.canvasPlayPointerCtx.lineTo(this.pointerOptions.endX, 50);
+    this.canvasPlayPointerCtx.strokeStyle = this.pointerOptions.color;
+    this.canvasPlayPointerCtx.lineWidth = this.pointerOptions.width;
+    this.canvasPlayPointerCtx.stroke();
+    // 正方形
+    this.canvasPlayPointerCtx.beginPath();
+    const squareSize = 8; // 正方形的边长
+    this.canvasPlayPointerCtx.rect(
+      this.pointerOptions.beginX - squareSize / 2,
+      0,
+      squareSize,
+      squareSize
+    );
+    let grd = this.canvasPlayPointerCtx.createLinearGradient(0, 0, 200, 0); // 使用渐变颜色填充,从(0,0)到(200,0) （左到右）
+    grd.addColorStop(0, this.pointerOptions.color); // 起始颜色
+    grd.addColorStop(1, this.pointerOptions.color); // 终点颜色
+    this.canvasPlayPointerCtx.fillStyle = grd; // 以上面定义的渐变填充
+    this.canvasPlayPointerCtx.fill(); // 填充颜色
+    this.canvasPlayPointerCtx.closePath();
+  }
+
+  ms_to_next_step(timestamp, step) {
+    let remainder = timestamp % step;
+    return remainder ? step - remainder : 0;
+  }
+
+  // 注册事件
+  initEvents() {
+    if (this.canvas) {
+      this.canvas.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+      });
+      this.canvas.addEventListener(
+        "mousemove",
+        this.canvasMousemoveFunc.bind(this)
+      );
+      // 滚轮事件
+      this.canvas.addEventListener(
+        "mousewheel",
+        this.mousewheelFunc.bind(this)
+      );
+      this.canvas.addEventListener("mousedown", this.mousedownFunc.bind(this));
+      this.canvas.addEventListener("mouseup", this.mouseupFunc.bind(this));
+      this.canvas.addEventListener("mouseout", this.mouseoutFunc.bind(this));
+
+      this.canvas.addEventListener("click", this.clickFunc.bind(this));
+    }
+  }
+
+  // 判断能否拖动轴
+  canDragAxis() {}
+
+  canDragPointer(ev) {
+    let x = ev.offsetX;
+    let y = ev.offsetY;
+    return this.canvasPlayPointerCtx.isPointInPath(x, y);
+  }
+
+  setPointer(ev) {
+    if (this.canDragPointer(ev)) {
+      this.dom.style.cursor = "pointer";
+      this.isDragPointer = true;
+      this.isMoveTriangle = true;
+    } else if (!this.isPressDown || this.button) {
+      // 指针没在拖动过程中
+      if (!(this.isPressDown && this.isMoveTriangle)) {
+        this.isDragPointer = false;
+        this.isMoveTriangle = false;
+        this.dom.style.cursor = "";
+      }
+    }
+  }
+
+  // 鼠标点击(按下)
+  mousedownFunc(e) {
+    console.log("---------", e);
+    if (e.button === 0) {
+      // 左键按下
+      this.isPressDown = true;
+      this.button = e.button;
+
+      if (this.canDragPointer(e)) {
+        this.currentChecked = "pointer";
+      } else {
+        this.currentChecked = "axis";
+      }
+
+      // 鼠标移动事件
+      document.onmousemove = (e) => {
+        this.mousemoveFunc(e);
+      };
+      document.onmouseup = (e) => {
+        this.mouseupFunc(e);
+        document.onmousemove = null;
+        document.onmouseup = null;
+      };
+
+      this.isDown = true;
+      this.g_mousedownCursor = this.getCursorPositionX(e); // 记住mousedown的位置
+    } else if (e.button === 2) {
+      // 右键按下
+    }
+  }
+
+  // canvas 鼠标移动
+  canvasMousemoveFunc(e) {
+    let posX = this.getCursorPositionX(e);
+    this.setPointer(e);
+    this.clearCanvas();
+    // 只鼠标移动
+    let timestamp = this.date + posX / this.pxPerMs;
+    if (!this.isMoveTriangle) {
+      this.drawLine({
+        beginX: posX,
+        beginY: 0,
+        endX: posX,
+        endY: this.canvasHeight,
+        color: "rgb(0, 255, 0,0)",
+        width: 1,
+      });
+    }
+    this.initCanvasCtx();
+    this.canvasCtx.fillStyle = "rgb(0, 255, 0,0)";
+    this.canvasCtx.textAlign = "center";
+    this.canvasCtx.fillText(this.formatDate("hh:mm", timestamp), posX, 18);
+  }
+  isValidTime(newDate) {
+    const today = new Date();
+    const minDate = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+      0,
+      0,
+      0
+    );
+    const maxDate = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+      20,
+      0,
+      0
+    );
+
+    return newDate >= minDate && newDate <= maxDate;
+  }
+
+  convertTimestampToDate(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+  }
+    // 鼠标指针Y位置
+    getCursorPositionY(e) {
+      let posy = 0;
+      if (!e) {
+        e = window.event;
+      }
+      if (e.pageY) {
+        posy = e.pageY;
+      } else if (e.clientY) {
+        posy =
+          e.clientY +
+          document.body.scrollTop +
+          document.documentElement.scrollTop;
+      }
+      posy -= this.canvas.getBoundingClientRect().top;
+      return posy;
+    }
+  // 鼠标移动
+  mousemoveFunc(e) {
+    let posX = this.getCursorPositionX(e);
+    let posY = this.getCursorPositionY(e);
+    this.setPointer(e);
+   
+
+    if (posX < 0 || posX > this.canvasWidth || posY < 0 || posY > this.canvasHeight) {
+      // 当鼠标超出画布时，不执行拖动逻辑
+      this.clearCanvas();
+      this.initCanvasCtx();
+      return;
+    }
+    this.clearCanvas();
+    this.isMove = true;
+    if (this.currentChecked === "axis") {
+      // 拖动时间轴
+      let diffX = posX - this.g_mousedownCursor;
+      let maxDiffX = 5; // 限制每次更新的最大距离，可以自行调整
+      if (Math.abs(diffX) > maxDiffX) {
+        diffX = maxDiffX * Math.sign(diffX);
+      }
+      let newDate = this.date - Math.round(diffX / this.pxPerMs);
+      let newDateString = this.convertTimestampToDate(newDate);
+
+      if (this.isValidTime(new Date(newDateString))) {
+        this.date = newDate;
+        console.log("拖动", newDateString);
+      } else {
+        // 当新日期超出范围时，更新g_mousedownCursor的值，使其不再移动
+        this.g_mousedownCursor = posX;
+      }
+      this.initCanvasCtx();
+    } else if (this.currentChecked === "pointer") {
+      let diffX = posX - this.g_mousedownCursor;
+      let maxDiffX = 5;
+      if (Math.abs(diffX) > maxDiffX) {
+        diffX = maxDiffX * Math.sign(diffX);
+      }
+      this.currentTimestamp = this.date + diffX / this.pxPerMs;
+      this.g_mousedownCursor = posX;
+      this.initCanvasCtx();
+      this.canvasCtx.fillStyle = "rgb(0, 255, 0)";
+      this.canvasCtx.textAlign = "center";
+      this.canvasCtx.fillText(
+        this.formatDate("yyyy-MM-dd hh:mm:ss", this.currentTimestamp),
+        posX,
+        18
+      );
+      }
+  }
+
+  // 鼠标抬起
+  mouseupFunc(e) {
+    if (this.isPressDown && this.button === 0) {
+      // 左键
+      this.isPressDown = false;
+      if (this.isMove) {
+        // 拖动
+        this.isMove = false;
+        if (this.currentChecked === "axis") {
+          // 拖动轴
+        } else if (this.currentChecked === "pointer") {
+          // 拖动指针
+          this.returnTime = this.currentTimestamp;
+          this.returnCheckTime("darg", this.returnTime);
+        }
+        this.currentChecked = "";
+      } else {
+        // 点击
+        if (!this.isClick) {
+          this.isClick = true;
+        }
+        // let posX = this.getCursorPositionX(e);
+        let posX = this.getCursorPositionX(e);
+        this.currentTimestamp = this.returnTime =
+          this.date +
+          (posX * (this.zoomHours * 3600 * 1000)) / this.canvasWidth;
+        let timestamp = this.date + posX / this.pxPerMs;
+        const time = this.formatDate("hh:mm", timestamp);
+
+        this.returnCheckTime("click", time);
+        this.clearCanvas();
+        this.initCanvasCtx();
+      }
+    }
+  }
+
+  // 鼠标点击
+  clickFunc(e) {
+    let posX = this.getCursorPositionX(e);
+    let timestamp = this.date + posX / this.pxPerMs;
+    const time = this.formatDate("hh:mm", timestamp);
+    console.log("查看点击内容", time);
+  }
+
+  // 滚轮事件
+  mousewheelFunc(event) {
+      if (event && event.preventDefault) {
+      event.preventDefault()
+    } else {
+      window.event.returnValue = false;
+      return false;
+    }
+    let e = window.event || event;
+    let delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)));
+    let posX = this.getCursorPositionX(e);
+    let middle_time = this.date + posX * (this.zoomHours * 3600 * 1000) / (this.canvasWidth); //ms 记住当前中间的时间
+    if (delta < 0) {
+      this.zoomHours = this.zoomHours - delta;
+      if (this.zoomHours >= 24) {
+        this.zoomHours = 24;//放大最大24小时
+      }
+    } else if (delta > 0) {// 放大
+      this.zoomHours = this.zoomHours - delta;
+      if (this.zoomHours <= 1) {
+        this.zoomHours = 1;//缩小最小1小时
+      }
+    }
+    this.clearCanvas();
+    this.date = middle_time - posX * (this.zoomHours * 3600 * 1000) / (this.canvasWidth);
+    this.initCanvasCtx()
+    console.log('1111111111111111',this.zoomHours)
+  }
+
+  mouseoutFunc(e) {
+    this.clearCanvas();
+    this.initCanvasCtx();
+  }
+
+  // 鼠标指针X位置
+  getCursorPositionX(e) {
+    let posx = 0;
+    if (!e) {
+      e = window.event;
+    }
+    if (e.pageX || e.pageY) {
+      posx = e.pageX;
+    } else if (e.clientX || e.clientY) {
+      posx =
+        e.clientX +
+        document.body.scrollLeft +
+        document.documentElement.scrollLeft;
+    }
+    posx -= this.canvas.getBoundingClientRect().left;
+    return posx;
+  }
+
+  // 清除canvas 每次重新绘制需要先清除
+  clearCanvas() {
+    this.canvasCtx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+  }
+
+  /**
+   * 返回点击或者拖动的时间点
+   * @param handle 触发方式{click,darg}
+   * @param currentTime 选中时间戳{1637164800000}
+   */
+  returnCheckTime(handle, currentTime) {
+    console.log("查看选择的时间", currentTime);
+
+    // 将 currentTime 转换为 Date 对象
+    let currentDate = new Date(currentTime);
+
+    // 转换回一个适当的时间戳（毫秒）
+    let adjustedTimestamp = currentDate.getTime();
+
+    // 向下取整
+    let formatCurrentTime = Math.floor(adjustedTimestamp);
+
+    // 判断时间是否有效
+    let isIndex = this.timecell.findIndex((item) => {
+      return formatCurrentTime >= item.begin && formatCurrentTime <= item.end;
+    });
+
+    // if (isIndex >= 0) {
+    // 有效区域
+    if (handle === "darg") {
+      this.callback({
+        mode: "darg", // 触发方式
+        timestamp: formatCurrentTime, // 时间戳
+        valid: true,
+      });
+    } else if (handle === "click") {
+      this.callback({
+        mode: "click",
+        timestamp: currentTime,
+        valid: true
+      });
+    }
+  }
+
+  formatDate(fmt, date) {
+    let myDate = date ? new Date(date) : new Date();
+    fmt = fmt || "yyyy-MM-dd";
+    const o = {
+      "M+": myDate.getMonth() + 1, // 月份
+      "d+": myDate.getDate(), // 日
+      "h+": myDate.getHours(), // 小时
+      "m+": myDate.getMinutes(), // 分
+      "s+": myDate.getSeconds(), // 秒
+      "q+": Math.floor((myDate.getMonth() + 3) / 3), // 季度
+      S: myDate.getMilliseconds(), // 毫秒
+    };
+    if (/(y+)/.test(fmt)) {
+      fmt = fmt.replace(
+        RegExp.$1,
+        (myDate.getFullYear() + "").substr(4 - RegExp.$1.length)
+      );
+    }
+    for (const k in o) {
+      if (new RegExp("(" + k + ")").test(fmt)) {
+        fmt = fmt.replace(
+          RegExp.$1,
+          RegExp.$1.length == 1
+            ? o[k]
+            : ("00" + o[k]).substr(("" + o[k]).length)
+        );
+      }
+    }
+    return fmt;
+  }
+
+  updateDatas(options) {
+    this.zoomHours = options.zoomHours;
+    this.date = options.date;
+    this.timecell = options.times;
+    if (options.times.length) {
+      // this.currentTimestamp = options.times[0].begin
+    }
+    this.clearCanvas();
+    this.initCanvasCtx();
+  }
+
+  // 更新时间 m
+  updateTime(time) {
+    if (this.returnTime) {
+      this.returnTime = time;
+      this.currentTimestamp = time;
+    }
+    this.clearCanvas();
+    this.initCanvasCtx();
+  }
+
+  setCurrentTimestamp(timestamp) {
+    this.currentTimestamp = timestamp;
+    this.initCanvasCtx();
+    this.canvasCtx.fillStyle = "rgb(0, 255, 0)";
+    this.canvasCtx.textAlign = "center";
+    let posX = (timestamp - this.date) * this.pxPerMs;
+    this.canvasCtx.fillText(
+      this.formatDate("yyyy-MM-dd hh:mm:ss", this.currentTimestamp),
+      posX,
+      18
+    );
+  }
+  setPointer(timestamp) {
+    this.setCurrentTimestamp(timestamp);
+    this.callback({ timestamp: timestamp });
+  }  
+}
+ 
